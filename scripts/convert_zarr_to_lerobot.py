@@ -35,7 +35,17 @@ import numpy as np
 import cv2
 from pathlib import Path
 from tqdm import tqdm
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+try:
+    from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+except ImportError as e:
+    if "libavformat" in str(e) or "libavcodec" in str(e):
+        sys.exit(
+            "PyAV 需要 FFmpeg 6.x。请先安装 FFmpeg：\n"
+            "  方案 A（推荐）：conda install -c conda-forge 'ffmpeg>=6.1'\n"
+            "  然后使用 bash data/run_convert.sh 运行（会自动使用 conda 的 FFmpeg）\n"
+            "  方案 B：bash install_sys_deps.sh（系统 apt 安装）"
+        )
+    raise
 import imagecodecs
 
 # 注册图像解码器
@@ -484,13 +494,13 @@ def main():
     parser.add_argument(
         '--zarr_path',
         type=str,
-        default=r'/home/liuchaoyi/openpi/data/_test_127.zarr.zip',
+        default=r'/home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/data/_test_127.zarr.zip',
         help='Zarr 文件路径 (.zarr 或 .zarr.zip)'
     )
     parser.add_argument(
         '--repo_id',
         type=str,
-        default=r'/home/liuchaoyi/openpi/data/lerobot/chaoyi/_test_127',
+        default=r'/home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/data/lerobot/chaoyi/_test_127',
         help='LeRobot 数据集 ID，格式: username/dataset-name'
     )
     parser.add_argument(

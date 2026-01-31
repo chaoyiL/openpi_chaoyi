@@ -575,10 +575,10 @@ _CONFIGS = [
             pi05=True
             ),
         data=SimpleDataConfig(
-            repo_id="/home/liuchaoyi/openpi/data/lerobot/chaoyi/_test_127",
+            repo_id="/home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/data/lerobot/chaoyi/_test_127",
             assets=AssetsConfig(
                 asset_id="_test_127",
-                assets_dir="/home/liuchaoyi/openpi/assets/pi05_chaoyi",
+                assets_dir="/home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/assets/pi05_chaoyi",
             ),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[vb_policy.VBInputs(model_type=ModelType.PI05)],

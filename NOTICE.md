@@ -4,8 +4,13 @@ cd到工作空间
 
 ```shell
 uv sync
-
 uv pip install -e .
+```
+
+解决ffmpeg报错
+
+```shell
+conda install -c conda-forge 'ffmpeg>=6.1'
 ```
 
 **Finetune 步骤**
@@ -28,18 +33,18 @@ uv pip install -e .
 
 1. 数据格式转换
 ```shell
-uv run python data/convert_zarr_to_lerobot.py
+bash data/run_convert.sh
 ```
 
 2. 计算归一化统计量
 ```shell
-uv run python scripts/compute_norm_stats.py --config-name pi05_chaoyi
+bash scripts/compute_norm_stats.sh
 ```
 （用uv锁定所有库的版本，避免冲突）
 其中pi05_chaoyi需要被修改为对应的config名，config在src/openpi/training/config.py中修改
 
 3. 训练
 ```shell
-uv run python scripts/train.py pi05_chaoyi --exp-name my_experiment --overwrite
+bash scripts/train.sh
 ```
 同理
