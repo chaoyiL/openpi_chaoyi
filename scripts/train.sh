@@ -6,6 +6,9 @@
 # 使用前请确保：
 #   方案 A（推荐）：在 conda 环境中安装 FFmpeg 6.x
 #     conda install -c conda-forge ffmpeg
+#
+# 用法：./train.sh [CONFIG] [其他参数...]
+#   CONFIG: 配置名，默认 pi05_chaoyi
 
 set -e
 
@@ -20,5 +23,13 @@ if [[ -n "$CONDA_PREFIX" ]]; then
     fi
 fi
 
+# config 可通过第一个参数传入，默认为 pi05_chaoyi
+if [[ -n "${1:-}" ]]; then
+    CONFIG="$1"
+    shift
+else
+    CONFIG="pi05_chaoyi"
+fi
+
 cd "$PROJECT_ROOT"
-uv run python scripts/train.py pi05_chaoyi --exp-name my_experiment --overwrite "$@"
+uv run python scripts/train.py "$CONFIG" --exp-name my_experiment --overwrite "$@"
