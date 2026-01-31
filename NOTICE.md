@@ -1,3 +1,13 @@
+**环境配置**
+
+cd到工作空间
+
+```shell
+uv sync
+
+uv pip install -e .
+```
+
 **Finetune 步骤**
 
 *TODO:*
