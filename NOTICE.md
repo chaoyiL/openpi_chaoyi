@@ -33,7 +33,7 @@
 
 1. 数据格式转换
 ```shell
-bash data/run_convert.sh
+bash scripts/run_convert.sh
 ```
 
 2. 计算归一化统计量
