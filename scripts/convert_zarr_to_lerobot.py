@@ -69,9 +69,7 @@ class ZarrToLeRobotConverter:
         
         # 加载 Zarr 数据
         print(f"加载 Zarr 数据: {self.zarr_path}")
-        # 这里主要是读取 zarr；zip 场景下多线程随机读很容易出现锁争用/卡顿。
-        # 因此使用只读模式，减少不必要的写锁与元数据更新路径。
-        store = ZipStore(self.zarr_path, mode="r")
+        store = ZipStore(self.zarr_path)
         self.zarr_root = zarr.group(store)
         self.data = self.zarr_root["data"]  # 数据在 root["data"] 下
         
