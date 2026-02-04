@@ -534,7 +534,7 @@ class ZarrToLeRobotConverter:
         
         return img
 
-def main(data_name = "example"):
+def main(data_name = "_0118"):
     parser = argparse.ArgumentParser(
         description='转换 ViTaMin-B Zarr 数据到 LeRobot 格式',
         formatter_class=argparse.RawDescriptionHelpFormatter

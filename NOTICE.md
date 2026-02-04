@@ -1,6 +1,16 @@
 **环境配置**
 
-0. 运行miniconda3/bin中的activate；创建conda环境
+0. 安装conda；运行miniconda3/bin中的activate；创建conda环境
+
+    ```shell
+    mkdir -p ~/miniconda3
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+    bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+    rm ~/miniconda3/miniconda.sh
+    source ~/miniconda3/bin/activate
+    conda create -n vb python==3.11
+    conda activate vb
+    ```
 
 1. 在conda环境中pip install uv；cd到工作空间
 
