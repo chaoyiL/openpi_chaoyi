@@ -26,6 +26,7 @@ LeRobot 格式结构:
 import argparse
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.append(project_root)
@@ -96,23 +97,6 @@ class ZarrToLeRobotConverter:
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.language_instruction = language_instruction
-        
-        # 检查编解码器是否可用
-        self._check_codec_availability()
-    
-    def _check_codec_availability(self):
-        """检查编解码器是否可用，如果不可用则提供友好的错误消息"""
-        # 尝试访问一个数组来触发编解码器检查
-        try:
-            keys = list(self.data.keys())
-            if keys:
-                # 尝试访问第一个键来检查编解码器（这会触发元数据加载）
-                test_key = keys[0]
-                test_array = self.data[test_key]
-                # 尝试访问数组的元数据来触发编解码器检查
-                _ = test_array.compressor
-        except ValueError as e:
-            raise RuntimeError(f"编解码器不可用: {e}")
     
     def get_episode_info(self):
         """从 zarr root 获取 episode 结构信息"""
@@ -263,9 +247,9 @@ class ZarrToLeRobotConverter:
         
         for ep_idx in tqdm(range(n_episodes), desc="转换 episodes"):
             num_frames = self._convert_episode(
-                dataset, 
-                ep_idx, 
-                episode_ends
+                dataset,
+                ep_idx,
+                episode_ends,
             )
             dataset.save_episode()
             total_frames += num_frames
@@ -285,6 +269,171 @@ class ZarrToLeRobotConverter:
         
         return dataset
     
+    def _build_frame_data(self, step_idx, stop_idx):
+        """
+        构建单帧数据（线程安全地只读取 zarr / 计算，不写入 dataset）
+        """
+        frame_data = {}
+        # 语言指令 / 任务名（按全局 step 对齐）
+        if step_idx < len(self.language_instruction):
+            frame_data["task"] = self.language_instruction[step_idx]
+        else:
+            frame_data["task"] = self.language_instruction[-1]
+
+        # 图像
+        camera_mappings = {
+            "camera0_rgb": "observation.images.camera0",
+            "camera1_rgb": "observation.images.camera1",
+        }
+
+        for cam_key, feature_key in camera_mappings.items():
+            if cam_key in self.data.keys():
+                img_data = self.data[cam_key][step_idx]
+                frame_data[feature_key] = self._process_image(img_data)
+            else:
+                # 如果没有对应的相机，使用零图像
+                frame_data[feature_key] = np.zeros((224, 224, 3), dtype=np.uint8)
+
+        tactile_mappings = {
+            "camera0_left_tactile": "observation.images.tactile_left_0",
+            "camera0_right_tactile": "observation.images.tactile_right_0",
+            "camera1_left_tactile": "observation.images.tactile_left_1",
+            "camera1_right_tactile": "observation.images.tactile_right_1",
+        }
+
+        for tac_key, feature_key in tactile_mappings.items():
+            if tac_key in self.data.keys():
+                img_data = self.data[tac_key][step_idx]
+                frame_data[feature_key] = self._process_image(img_data)
+            else:
+                # 如果没有对应的相机，使用零图像
+                frame_data[feature_key] = np.zeros((224, 224, 3), dtype=np.uint8)
+
+        # 状态向量：拼接所有机器人 1. 相对初始位置的位姿 2. 夹爪距离 3. 相对另一个夹爪的位姿
+        state_features = []
+        curr2world_mat_0 = None
+        curr2world_mat_1 = None
+
+        for i in range(self.num_robots):
+            # 1. 相对初始位姿
+            init2world_mat = pose_to_mat(self.data[f"robot{i}_demo_start_pose"][0])
+            curr2world_mat = pose_to_mat(
+                np.concatenate(
+                    [
+                        self.data[f"robot{i}_eef_pos"][step_idx],
+                        self.data[f"robot{i}_eef_rot_axis_angle"][step_idx],
+                    ],
+                    axis=-1,
+                )
+            )
+            if i == 0:
+                curr2world_mat_0 = curr2world_mat
+            else:
+                curr2world_mat_1 = curr2world_mat
+
+            curr2init_mat = np.linalg.inv(init2world_mat) @ curr2world_mat
+            curr2init_pose = mat_to_pose(curr2init_mat)
+            state_features.extend(curr2init_pose)  # rel pos + rel rot_vec, 6d
+
+            # 2. 夹爪距离
+            grip_key = f"robot{i}_gripper_width"
+            if grip_key in self.data.keys():
+                grip_data = self.data[grip_key][step_idx]
+                try:
+                    if hasattr(grip_data, "__len__"):
+                        state_features.append(float(grip_data[0]))  # gripper width, 1d
+                    else:
+                        state_features.append(float(grip_data))
+                except Exception:
+                    state_features.append(0.0)
+            else:
+                state_features.append(0.0)
+
+        # 3. 两个末端执行器相对位姿
+        if curr2world_mat_0 is not None and curr2world_mat_1 is not None:
+            rel_0to1_pose = mat_to_pose(
+                np.linalg.inv(curr2world_mat_1) @ curr2world_mat_0
+            )
+            state_features.extend(rel_0to1_pose)  # rel pos + rel rot_vec, 6d
+
+        # 状态维度裁剪 / 补零
+        expected_state_dim = self.state_dim
+        if len(state_features) < expected_state_dim:
+            state_features.extend([0.0] * (expected_state_dim - len(state_features)))
+        elif len(state_features) > expected_state_dim:
+            state_features = state_features[:expected_state_dim]
+
+        frame_data["observation.state"] = np.asarray(
+            state_features, dtype=np.float32
+        )  # totally 20d
+
+        # 动作（变化量）
+        if step_idx < stop_idx - 1:
+            action_features = []
+            for i in range(self.num_robots):
+                # Δ action
+                pos_key = f"robot{i}_eef_pos"
+                rot_key = f"robot{i}_eef_rot_axis_angle"
+                next2world_mat = pose_to_mat(
+                    np.concatenate(
+                        [
+                            self.data[pos_key][step_idx + 1],
+                            self.data[rot_key][step_idx + 1],
+                        ],
+                        axis=-1,
+                    )
+                )
+                curr2world_mat = pose_to_mat(
+                    np.concatenate(
+                        [
+                            self.data[pos_key][step_idx],
+                            self.data[rot_key][step_idx],
+                        ],
+                        axis=-1,
+                    )
+                )
+
+                next2curr_mat = np.linalg.inv(curr2world_mat) @ next2world_mat
+                next2curr_pos = mat_to_pose(next2curr_mat)[:3]
+                # 提取旋转矩阵前两列并展平（6d）
+                rot_cols = next2curr_mat[:3, :2].reshape(-1)
+                action_feature_9d = np.concatenate(
+                    [next2curr_pos, rot_cols], axis=0
+                )  # 拼接为9d向量
+                action_features.extend(action_feature_9d)  # rel pos + rel mat first two cols, 9d
+
+                # Δ gripper
+                grip_key = f"robot{i}_gripper_width"
+                if grip_key in self.data.keys():
+                    next_grip = self.data[grip_key][step_idx + 1]
+                    curr_grip = self.data[grip_key][step_idx]
+                    try:
+                        if hasattr(next_grip, "__len__") and hasattr(
+                            curr_grip, "__len__"
+                        ):
+                            delta_grip = float(next_grip[0] - curr_grip[0])
+                        elif hasattr(next_grip, "__len__"):
+                            delta_grip = float(next_grip[0] - curr_grip)
+                        elif hasattr(curr_grip, "__len__"):
+                            delta_grip = float(next_grip - curr_grip[0])
+                        else:
+                            delta_grip = float(next_grip - curr_grip)
+                        action_features.append(delta_grip)  # gripper width, 1d
+                    except Exception:
+                        action_features.append(0.0)
+                else:
+                    action_features.append(0.0)
+
+            frame_data["actions"] = np.asarray(
+                action_features, dtype=np.float32
+            )  # totally 20d
+        else:
+            # 最后一帧：零动作
+            action_dim = self.action_dim
+            frame_data["actions"] = np.zeros(action_dim, dtype=np.float32)
+
+        return frame_data
+
     def _convert_episode(self, dataset, ep_idx, episode_ends):
         """
         转换单个 episode
@@ -298,140 +447,24 @@ class ZarrToLeRobotConverter:
         # 获取该 episode 的步骤范围
         episode_slice = self.get_episode_slice(ep_idx, episode_ends)
         start_idx, stop_idx = episode_slice.start, episode_slice.stop
-        
-        # 转换每一帧（使用全局步骤索引）
-        for step_idx in range(start_idx, stop_idx):
-            frame_data = {}
-            if step_idx < len(self.language_instruction):
-                frame_data["task"] = self.language_instruction[step_idx]
-            else:
-                frame_data["task"] = self.language_instruction[-1]
 
-            # 处理图像
-            camera_mappings = {
-                "camera0_rgb": "observation.images.camera0",
-                "camera1_rgb": "observation.images.camera1",
-            }
-            
-            for cam_key, feature_key in camera_mappings.items():
-                if cam_key in self.data.keys():
-                    img_data = self.data[cam_key][step_idx]
-                    frame_data[feature_key] = self._process_image(img_data)
-                else:
-                    # 如果没有对应的相机，使用零图像
-                    frame_data[feature_key] = np.zeros((224, 224, 3), dtype=np.uint8)
-            
-            tactile_mappings = {
-                "camera0_left_tactile": "observation.images.tactile_left_0",
-                "camera0_right_tactile": "observation.images.tactile_right_0",
-                "camera1_left_tactile": "observation.images.tactile_left_1",
-                "camera1_right_tactile": "observation.images.tactile_right_1",
-            }
+        # 先使用多线程并行构建每一帧的数据（只读 Zarr，不写磁盘）
+        indices = list(range(start_idx, stop_idx))
+        # 适当限制线程数，避免过多线程竞争
+        max_workers = min(16, os.cpu_count() or 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 结果顺序与 indices 保持一致，保证帧顺序与原始数据一致
+            frame_list = list(
+                executor.map(
+                    lambda s: self._build_frame_data(s, stop_idx),
+                    indices,
+                )
+            )
 
-            for tac_key, feature_key in tactile_mappings.items():
-                if tac_key in self.data.keys():
-                    img_data = self.data[tac_key][step_idx]
-                    frame_data[feature_key] = self._process_image(img_data)
-                else:
-                    # 如果没有对应的相机，使用零图像
-                    frame_data[feature_key] = np.zeros((224, 224, 3), dtype=np.uint8)
-
-            # 构建状态向量：拼接所有机器人 1. 相对初始位置的位姿 2. 夹爪距离 3. 相对另一个夹爪的位姿
-            # 动作表征方式：3 pos + 3 rot_vec
-            state_features = []
-            curr2world_mat_0 = None
-            curr2world_mat_1 = None
-            
-            for i in range(self.num_robots):
-                '''1. 相对初始位置的位姿'''
-                # 获取初始位姿相对世界系的mat、当前位姿相对世界系的mat
-                init2world_mat = pose_to_mat(self.data[f"robot{i}_demo_start_pose"][0])
-                curr2world_mat = pose_to_mat(np.concatenate([ self.data[f"robot{i}_eef_pos"][step_idx], 
-                self.data[f"robot{i}_eef_rot_axis_angle"][step_idx]], axis=-1))
-                if i == 0:
-                    curr2world_mat_0 = curr2world_mat
-                else:
-                    curr2world_mat_1 = curr2world_mat
-
-                # 计算相对初始位置的mat与pose
-                curr2init_mat = np.linalg.inv(init2world_mat) @ curr2world_mat
-                curr2init_pose = mat_to_pose(curr2init_mat)
-                state_features.extend(curr2init_pose) # rel pos + rel rot_vec, 6d
-        
-                '''2. 夹爪距离'''
-                grip_key = f'robot{i}_gripper_width'
-                if grip_key in self.data.keys():
-                    grip_data = self.data[grip_key][step_idx]
-                    try:
-                        if hasattr(grip_data, "__len__"):
-                            state_features.append(float(grip_data[0])) #gripper width, 1d
-                        else:
-                            state_features.append(float(grip_data))
-                    except Exception:
-                        state_features.append(0.0)
-                else:
-                    state_features.append(0.0)
-            
-            '''3. 相对另一个夹爪的位姿'''
-            if curr2world_mat_0 is not None and curr2world_mat_1 is not None:
-                rel_0to1_pose = mat_to_pose(np.linalg.inv(curr2world_mat_1) @ curr2world_mat_0)
-                state_features.extend(rel_0to1_pose) # rel pos + rel rot_vec, 6d
-
-            # 确保状态维度正确
-            expected_state_dim = self.state_dim
-            if len(state_features) < expected_state_dim:
-                state_features.extend([0.0] * (expected_state_dim - len(state_features)))
-            elif len(state_features) > expected_state_dim:
-                state_features = state_features[:expected_state_dim]
-            
-            frame_data["observation.state"] = np.asarray(state_features, dtype=np.float32) # totally 20d
-            
-            # 动作（变化量）
-            if step_idx < stop_idx - 1:
-                action_features = []
-                for i in range(self.num_robots):
-                    # Δ action
-                    pos_key = f'robot{i}_eef_pos'
-                    rot_key = f'robot{i}_eef_rot_axis_angle'
-                    next2world_mat = pose_to_mat(np.concatenate([self.data[pos_key][step_idx + 1], 
-                    self.data[rot_key][step_idx + 1]], axis=-1))
-                    curr2world_mat = pose_to_mat(np.concatenate([self.data[pos_key][step_idx], 
-                    self.data[rot_key][step_idx]], axis=-1))
-
-                    next2curr_mat = np.linalg.inv(curr2world_mat) @ next2world_mat
-                    next2curr_pos = mat_to_pose(next2curr_mat)[:3]
-                    rot_cols = next2curr_mat[:3, :2].reshape(-1)  # 提取旋转矩阵前两列并展平（6d）
-                    action_feature_9d = np.concatenate([next2curr_pos, rot_cols], axis=0)  # 拼接为9d向量
-                    action_features.extend(action_feature_9d) # rel pos + rel mat first two cols, 9d
-                    
-                    # Δ gripper
-                    grip_key = f'robot{i}_gripper_width'
-                    if grip_key in self.data.keys():
-                        next_grip = self.data[grip_key][step_idx + 1]
-                        curr_grip = self.data[grip_key][step_idx]
-                        try:
-                            if hasattr(next_grip, "__len__") and hasattr(curr_grip, "__len__"):
-                                delta_grip = float(next_grip[0] - curr_grip[0])
-                            elif hasattr(next_grip, "__len__"):
-                                delta_grip = float(next_grip[0] - curr_grip)
-                            elif hasattr(curr_grip, "__len__"):
-                                delta_grip = float(next_grip - curr_grip[0])
-                            else:
-                                delta_grip = float(next_grip - curr_grip)
-                            action_features.append(delta_grip) # gripper width, 1d
-                        except Exception:
-                            action_features.append(0.0)
-                    else:
-                        action_features.append(0.0)
-                
-                frame_data["actions"] = np.asarray(action_features, dtype=np.float32) # totally 20d
-            else:
-                # 最后一帧：零动作
-                action_dim = self.action_dim
-                frame_data["actions"] = np.zeros(action_dim, dtype=np.float32)
-                        
+        # 再在主线程中按顺序写入数据集，避免多线程写 dataset 的并发问题
+        for frame_data in frame_list:
             dataset.add_frame(frame_data)
-        
+
         return stop_idx - start_idx
     
     def _process_image(self, image_data, target_h=224, target_w=224):
@@ -551,24 +584,6 @@ def main():
         )
         
         dataset = converter.convert_all_episodes()
-        
-        # 打印后续步骤
-        # print()
-        # print("="*70)
-        # print("下一步操作:")
-        # print("="*70)
-        # print()
-        # print("1. 验证转换后的数据:")
-        # print(f"   python verify_conversion.py --repo_id {args.repo_id}")
-        # print()
-        # print("2. 在 OpenPI 项目中创建训练配置")
-        # print()
-        # print("3. 计算归一化统计量:")
-        # print(f"   cd <openpi_project_dir>")
-        # print(f"   uv run scripts/compute_norm_stats.py --config-name your_config_name")
-        # print()
-        # print("4. 开始训练:")
-        # print(f"   uv run scripts/train.py your_config_name --exp-name=my_experiment")
         
     except Exception as e:
         print(f"\n错误: 转换失败")

@@ -31,11 +31,9 @@
 
 1. config中，state和action的维度默认相同（pi0_config.py第71行），但可以修改. 本库中已经将state_dim与action_dim解耦
 
-2. train.py中，原先的action为32维，需要在_load_weights_and_validate函数中添加自动适配action_dim的代码
+2. train.py中，原先的action为32维，需要在_load_weights_and_validate函数中添加自动适配action_dim的代码（为何load出来的action dim会和load之前有不同？？）
 
-3. 
-
-4. model.py中，原先的tuple IMAGE_KEYs与vb_policy中设定的图像keys不同，需要修改为对应名称
+3. model.py中，原先的tuple IMAGE_KEYs与vb_policy中设定的图像keys不同，需要修改为对应名称
 
 **Finetune 步骤**
 
