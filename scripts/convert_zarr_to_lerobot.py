@@ -234,7 +234,7 @@ class ZarrToLeRobotConverter:
         
         # 并行构建各 episode 的帧数据（仅读 zarr，不写 dataset）
         if episode_workers is None:
-            episode_workers = min(8, os.cpu_count() or 4)
+            episode_workers = min(4, os.cpu_count())
         episode_workers = max(1, min(episode_workers, n_episodes))
         print(f"\n使用 {episode_workers} 个 worker 并行处理 episodes...")
         print(f"开始转换 {n_episodes} 个 episodes...")
@@ -459,7 +459,7 @@ class ZarrToLeRobotConverter:
         start_idx, stop_idx = episode_slice.start, episode_slice.stop
         indices = list(range(start_idx, stop_idx))
         if frame_workers is None:
-            frame_workers = min(8, os.cpu_count() or 4)
+            frame_workers = min(4, os.cpu_count())
         frame_workers = max(1, min(frame_workers, len(indices)))
         with ThreadPoolExecutor(max_workers=frame_workers) as executor:
             frame_list = list(
