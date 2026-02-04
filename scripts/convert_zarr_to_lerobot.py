@@ -69,7 +69,9 @@ class ZarrToLeRobotConverter:
         
         # 加载 Zarr 数据
         print(f"加载 Zarr 数据: {self.zarr_path}")
-        store = ZipStore(self.zarr_path, mode="a")
+        # 这里主要是读取 zarr；zip 场景下多线程随机读很容易出现锁争用/卡顿。
+        # 因此使用只读模式，减少不必要的写锁与元数据更新路径。
+        store = ZipStore(self.zarr_path, mode="r")
         self.zarr_root = zarr.group(store)
         self.data = self.zarr_root["data"]  # 数据在 root["data"] 下
         
@@ -88,6 +90,13 @@ class ZarrToLeRobotConverter:
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.language_instruction = language_instruction
+
+    def _is_zip_store(self) -> bool:
+        """判断底层是否为 ZipStore（.zarr.zip）"""
+        try:
+            return isinstance(getattr(self.zarr_root, "store", None), ZipStore)
+        except Exception:
+            return str(self.zarr_path).endswith(".zip")
     
     def get_episode_info(self):
         """从 zarr root 获取 episode 结构信息"""
@@ -211,12 +220,14 @@ class ZarrToLeRobotConverter:
         
         return dataset
     
-    def convert_all_episodes(self, episode_workers=None):
+    def convert_all_episodes(self, episode_workers=None, frame_workers=None):
         """
         转换所有 episodes（不同 episode 之间并行处理）
         
         Args:
             episode_workers: 并行处理的 episode 数量，None 时取 min(8, cpu_count)
+            frame_workers: 单 episode 内帧级并行 worker 数。为了避免嵌套线程爆炸，
+                          默认在 episode_workers>1 或 ZipStore 场景下会自动降为 1。
         """
         
         # 获取 episode 信息
@@ -233,17 +244,30 @@ class ZarrToLeRobotConverter:
         dataset = self.create_lerobot_dataset()
         
         # 并行构建各 episode 的帧数据（仅读 zarr，不写 dataset）
+        is_zip = self._is_zip_store()
         if episode_workers is None:
-            episode_workers = min(4, os.cpu_count())
+            # ZipStore 场景下并发过高会造成 zipfile/解压锁争用 + I/O 饱和，反而更慢
+            episode_workers = min(4 if is_zip else 8, os.cpu_count() or 4)
         episode_workers = max(1, min(episode_workers, n_episodes))
+
+        # 避免 episode 并行 + frame 并行 形成 N*M 线程争用同一个 store
+        if frame_workers is None:
+            if is_zip or episode_workers > 1:
+                frame_workers = 1
+            else:
+                frame_workers = min(8, os.cpu_count() or 4)
+
         print(f"\n使用 {episode_workers} 个 worker 并行处理 episodes...")
+        if is_zip:
+            print("检测到 ZipStore(.zarr.zip)：已自动采用更保守的并发策略以避免卡顿。")
+        print(f"单 episode 帧级 worker: {frame_workers}")
         print(f"开始转换 {n_episodes} 个 episodes...")
         total_frames = 0
 
         with ThreadPoolExecutor(max_workers=episode_workers) as executor:
             # 按 episode 索引提交任务，map 保证结果顺序与 range(n_episodes) 一致
             future_to_idx = {
-                executor.submit(self._build_episode_frames, ep_idx, episode_ends): ep_idx
+                executor.submit(self._build_episode_frames, ep_idx, episode_ends, frame_workers): ep_idx
                 for ep_idx in range(n_episodes)
             }
             # 按 episode 顺序收集结果并写入 dataset
@@ -459,15 +483,15 @@ class ZarrToLeRobotConverter:
         start_idx, stop_idx = episode_slice.start, episode_slice.stop
         indices = list(range(start_idx, stop_idx))
         if frame_workers is None:
-            frame_workers = min(4, os.cpu_count())
+            frame_workers = min(4, os.cpu_count() or 4)
         frame_workers = max(1, min(frame_workers, len(indices)))
+
+        # frame_workers=1 时直接顺序构建，避免线程池开销与争用
+        if frame_workers == 1:
+            return [self._build_frame_data(s, stop_idx) for s in indices]
+
         with ThreadPoolExecutor(max_workers=frame_workers) as executor:
-            frame_list = list(
-                executor.map(
-                    lambda s: self._build_frame_data(s, stop_idx),
-                    indices,
-                )
-            )
+            frame_list = list(executor.map(lambda s: self._build_frame_data(s, stop_idx), indices))
         return frame_list
 
     def _convert_episode(self, dataset, ep_idx, episode_ends):
@@ -570,6 +594,12 @@ def main(data_name = "_0118"):
         default=None,
         help='并行处理的 episode 数量，默认 min(8, CPU 核心数)'
     )
+    parser.add_argument(
+        '--frame_workers',
+        type=int,
+        default=None,
+        help='单 episode 内帧级并行 worker 数（默认自动；当 episode_workers>1 或 ZipStore 时默认会降为 1）'
+    )
     
     args = parser.parse_args()
     
@@ -600,7 +630,10 @@ def main(data_name = "_0118"):
             language_instruction=args.language_instruction
         )
         
-        dataset = converter.convert_all_episodes(episode_workers=args.episode_workers)
+        dataset = converter.convert_all_episodes(
+            episode_workers=args.episode_workers,
+            frame_workers=args.frame_workers,
+        )
         
     except Exception as e:
         print(f"\n错误: 转换失败")
