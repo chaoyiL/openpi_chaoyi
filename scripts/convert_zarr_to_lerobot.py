@@ -69,8 +69,10 @@ class ZarrToLeRobotConverter:
         
         # 加载 Zarr 数据
         print(f"加载 Zarr 数据: {self.zarr_path}")
-        store = ZipStore(self.zarr_path)
-        self.zarr_root = zarr.group(store)
+        # 这里主要是读取 zarr；zip 场景下多线程随机读很容易出现锁争用/卡顿。
+        # 显式只读打开，并且用只读 mode 打开 group，避免 zarr 默认 r+/a 模式导致报错。
+        store = ZipStore(self.zarr_path, mode="r")
+        self.zarr_root = zarr.open_group(store=store, mode="r")
         self.data = self.zarr_root["data"]  # 数据在 root["data"] 下
         
         print(f"Zarr 数据包含的键: {list(self.data.keys())}")
