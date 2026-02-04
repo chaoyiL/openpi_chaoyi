@@ -543,13 +543,13 @@ def main(data_name = "_0118"):
     parser.add_argument(
         '--zarr_path',
         type=str,
-        default=r'data/' + data_name + '.zarr.zip',
+        default=f'data/{data_name}.zarr.zip',
         help='Zarr 文件路径 (.zarr 或 .zarr.zip)'
     )
     parser.add_argument(
         '--repo_id',
         type=str,
-        default=r'data/lerobot/chaoyi/' + data_name,
+        default=f'data/lerobot/chaoyi/{data_name}',
         help='LeRobot 数据集 ID 或本地保存路径. 默认保存位置~/.cache/lerobot/data'
     )
     parser.add_argument(
