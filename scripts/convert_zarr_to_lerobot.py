@@ -550,7 +550,7 @@ def main(data_name = "_0118"):
         '--repo_id',
         type=str,
         default=f'data/lerobot/chaoyi/{data_name}',
-        help='LeRobot 数据集 ID 或本地保存路径. 默认保存位置~/.cache/lerobot/data'
+        help='LeRobot 数据集 ID 或本地保存路径. 默认保存位置~/.cache/huggingface/lerobot/...'
     )
     parser.add_argument(
         '--fps',
@@ -611,4 +611,4 @@ def main(data_name = "_0118"):
 
 
 if __name__ == '__main__':
-    main(data_name = "example")
+    main(data_name = "_0118")
