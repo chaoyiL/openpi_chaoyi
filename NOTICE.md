@@ -1,19 +1,28 @@
 **环境配置**
 
-1. pip install uv；cd到工作空间
+0. 运行miniconda3/bin中的activate；创建conda环境
 
-2. 配置环境
+1. 在conda环境中pip install uv；cd到工作空间
+
+2. 解决 PyAV/av 构建报错（uv sync 时 av 从源码编译，需要以下依赖）
+
+    ```shell
+    conda install -c conda-forge 'ffmpeg>=7'
+    conda install -c conda-forge pkg-config cython c-compiler
+    ```
+
+3. 配置环境
 
     ```shell
     uv sync
     uv pip install -e .
     ```
 
-3. 解决ffmpeg报错
-
+4. 下载文件
     ```shell
-    conda install -c conda-forge 'ffmpeg>=6.1'
+    gdown "https://drive.google.com/drive/folders/1YP4H8W_4Cp12oZy38Am3YABi0s4k98Ib" -O ./data --folder
     ```
+    其中，网址替换成自己的数据
 
 **TODO**
 

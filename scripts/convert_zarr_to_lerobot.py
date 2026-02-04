@@ -527,13 +527,13 @@ def main():
     parser.add_argument(
         '--zarr_path',
         type=str,
-        default=r'/home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/data/example.zarr.zip',
+        default=r'./data/_0118.zarr.zip',
         help='Zarr 文件路径 (.zarr 或 .zarr.zip)'
     )
     parser.add_argument(
         '--repo_id',
         type=str,
-        default=r'/home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/data/lerobot/chaoyi/_test_127',
+        default=r'./data/lerobot/chaoyi/_0118',
         help='LeRobot 数据集 ID，格式: username/dataset-name'
     )
     parser.add_argument(
