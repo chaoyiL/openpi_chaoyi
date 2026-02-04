@@ -598,7 +598,7 @@ _CONFIGS = [
         # Disable EMA for LoRA fine-tuning
         ema_decay=None,
         # Can use larger batch size with LoRA (lower memory footprint)
-        batch_size=64,
+        batch_size=8,
         num_train_steps=30000,
         exp_name="test_0130",
         # Load pre-trained weights for PaliGemma and action_expert, skip tactile components

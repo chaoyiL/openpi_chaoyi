@@ -23,11 +23,19 @@
 
     action：1. 末端执行器的位姿变化量（pos + 旋转矩阵前两列， 9d * 2）2. 夹爪距离变化量（1d * 2）
 
-2. **修改policy**：写一个新的vb_policy，key和维度与我们自己的features符合
+2. **修改policy**（已完成）：写一个新的vb_policy，key和维度与我们自己的features符合
+
+3. **修改网络**：将触觉信号加入
 
 *注：*
 
 1. config中，state和action的维度默认相同（pi0_config.py第71行），但可以修改. 本库中已经将state_dim与action_dim解耦
+
+2. train.py中，原先的action为32维，需要在_load_weights_and_validate函数中添加自动适配action_dim的代码
+
+3. 
+
+4. model.py中，原先的tuple IMAGE_KEYs与vb_policy中设定的图像keys不同，需要修改为对应名称
 
 **Finetune 步骤**
 

@@ -73,6 +73,29 @@ def init_wandb(config: _config.TrainConfig, *, resuming: bool, log_code: bool = 
 def _load_weights_and_validate(loader: _weight_loaders.WeightLoader, params_shape: at.Params) -> at.Params:
     """Loads and validates the weights. Returns a loaded subset of the weights."""
     loaded_params = loader.load(params_shape)
+    
+    # Fix action_dim mismatch  ← 新增代码开始
+    try:
+        # Fix action_in_proj (input: action_dim -> 1024)
+        if "action_in_proj" in params_shape and "action_in_proj" in loaded_params:
+            exp_dim = params_shape["action_in_proj"]["kernel"].shape[0]
+            got_dim = loaded_params["action_in_proj"]["kernel"].shape[0]
+            if got_dim != exp_dim:
+                import logging
+                logging.info(f"[COMPAT] Resizing action_in_proj kernel: {got_dim} -> {exp_dim}")
+                loaded_params["action_in_proj"]["kernel"] = loaded_params["action_in_proj"]["kernel"][:exp_dim, :]
+        
+        # Fix action_out_proj (output: 1024 -> action_dim)
+        if "action_out_proj" in params_shape and "action_out_proj" in loaded_params:
+            exp_dim = params_shape["action_out_proj"]["bias"].shape[0]
+            got_dim = loaded_params["action_out_proj"]["bias"].shape[0]
+            if got_dim != exp_dim:
+                import logging
+                logging.info(f"[COMPAT] Resizing action_out_proj: {got_dim} -> {exp_dim}")
+                loaded_params["action_out_proj"]["kernel"] = loaded_params["action_out_proj"]["kernel"][:, :exp_dim]
+                loaded_params["action_out_proj"]["bias"] = loaded_params["action_out_proj"]["bias"][:exp_dim]
+    except: pass  # ← 新增代码结束
+
     at.check_pytree_equality(expected=params_shape, got=loaded_params, check_shapes=True, check_dtypes=True)
 
     # Remove jax.ShapeDtypeStruct from the loaded params. This makes sure that only the loaded params are returned.
