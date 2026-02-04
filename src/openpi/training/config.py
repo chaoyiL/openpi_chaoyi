@@ -559,11 +559,8 @@ class TrainConfig:
 
 
 # Use `get_config` if you need to get a config by name in your code.
+exp_id = "example"
 _CONFIGS = [
-    #
-    # Inference Aloha configs.
-    #
-    # New config
     TrainConfig(
         name="pi05_chaoyi",
         model=pi0_config.Pi0Config(
@@ -575,10 +572,10 @@ _CONFIGS = [
             pi05=True
             ),
         data=SimpleDataConfig(
-            repo_id="./data/lerobot/chaoyi/_0118",
+            repo_id=r'data/lerobot/chaoyi/' + exp_id,
             assets=AssetsConfig(
-                asset_id="_0118",
-                assets_dir="./assets/pi05_chaoyi",
+                asset_id = exp_id,
+                assets_dir=r"assets/pi05_chaoyi",
             ),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[vb_policy.VBInputs(model_type=ModelType.PI05)],
@@ -600,7 +597,7 @@ _CONFIGS = [
         # Can use larger batch size with LoRA (lower memory footprint)
         batch_size=1,
         num_train_steps=30000,
-        exp_name="test_0130",
+        exp_name=exp_id,
         # Load pre-trained weights for PaliGemma and action_expert, skip tactile components
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
     ),

@@ -24,9 +24,11 @@ LeRobot 格式结构:
 """
 
 import argparse
+from concurrent.futures._base import Future
 import sys
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.append(project_root)
@@ -36,18 +38,7 @@ import numpy as np
 import cv2
 from pathlib import Path
 from tqdm import tqdm
-try:
-    from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-except ImportError as e:
-    if "libavformat" in str(e) or "libavcodec" in str(e):
-        sys.exit(
-            "PyAV 需要 FFmpeg 6.x。请先安装 FFmpeg：\n"
-            "  方案 A（推荐）：conda install -c conda-forge 'ffmpeg>=6.1'\n"
-            "  然后使用 bash data/run_convert.sh 运行（会自动使用 conda 的 FFmpeg）\n"
-            "  方案 B：bash install_sys_deps.sh（系统 apt 安装）"
-        )
-    raise
-import imagecodecs
+from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
 # 注册图像解码器
 from utils.imagecodecs_numcodecs import register_codecs
@@ -220,12 +211,12 @@ class ZarrToLeRobotConverter:
         
         return dataset
     
-    def convert_all_episodes(self):
+    def convert_all_episodes(self, episode_workers=None):
         """
-        转换所有 episodes
+        转换所有 episodes（不同 episode 之间并行处理）
         
         Args:
-            language_instruction: 任务描述
+            episode_workers: 并行处理的 episode 数量，None 时取 min(8, cpu_count)
         """
         
         # 获取 episode 信息
@@ -241,18 +232,37 @@ class ZarrToLeRobotConverter:
         # 创建 LeRobot 数据集
         dataset = self.create_lerobot_dataset()
         
-        # 转换每个 episode
-        print(f"\n开始转换 {n_episodes} 个 episodes...")
+        # 并行构建各 episode 的帧数据（仅读 zarr，不写 dataset）
+        if episode_workers is None:
+            episode_workers = min(8, os.cpu_count() or 4)
+        episode_workers = max(1, min(episode_workers, n_episodes))
+        print(f"\n使用 {episode_workers} 个 worker 并行处理 episodes...")
+        print(f"开始转换 {n_episodes} 个 episodes...")
         total_frames = 0
-        
-        for ep_idx in tqdm(range(n_episodes), desc="转换 episodes"):
-            num_frames = self._convert_episode(
-                dataset,
-                ep_idx,
-                episode_ends,
-            )
+
+        with ThreadPoolExecutor(max_workers=episode_workers) as executor:
+            # 按 episode 索引提交任务，map 保证结果顺序与 range(n_episodes) 一致
+            future_to_idx = {
+                executor.submit(self._build_episode_frames, ep_idx, episode_ends): ep_idx
+                for ep_idx in range(n_episodes)
+            }
+            # 按 episode 顺序收集结果并写入 dataset
+            results_by_idx = [None] * n_episodes
+            for future in tqdm(as_completed(future_to_idx), total=n_episodes, desc="转换 episodes"):
+                ep_idx = future_to_idx[future]
+                try:
+                    frame_list = future.result()
+                    results_by_idx[ep_idx] = frame_list
+                except Exception as e:
+                    raise RuntimeError(f"Episode {ep_idx} 处理失败: {e}") from e
+
+        # 主线程按 episode 顺序写入 dataset，保证 LeRobot 格式顺序正确
+        for ep_idx in range(n_episodes):
+            frame_list = results_by_idx[ep_idx]
+            for frame_data in frame_list:
+                dataset.add_frame(frame_data)
             dataset.save_episode()
-            total_frames += num_frames
+            total_frames += len(frame_list)
         
         # 关闭 store
         store = self.zarr_root.store
@@ -434,38 +444,45 @@ class ZarrToLeRobotConverter:
 
         return frame_data
 
-    def _convert_episode(self, dataset, ep_idx, episode_ends):
+    def _build_episode_frames(self, ep_idx, episode_ends, frame_workers=None):
         """
-        转换单个 episode
+        仅构建单个 episode 的所有帧数据（只读 Zarr，不写 dataset），供 episode 级并行调用。
         
         Args:
-            dataset: LeRobotDataset 对象
             ep_idx: episode 索引
             episode_ends: episode 结束位置数组
+            frame_workers: 帧级并行 worker 数，None 时取较小值以控制总线程数
+        Returns:
+            该 episode 的 frame_data 列表，顺序与步骤一致
         """
-        
-        # 获取该 episode 的步骤范围
         episode_slice = self.get_episode_slice(ep_idx, episode_ends)
         start_idx, stop_idx = episode_slice.start, episode_slice.stop
-
-        # 先使用多线程并行构建每一帧的数据（只读 Zarr，不写磁盘）
         indices = list(range(start_idx, stop_idx))
-        # 适当限制线程数，避免过多线程竞争
-        max_workers = min(16, os.cpu_count() or 4)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 结果顺序与 indices 保持一致，保证帧顺序与原始数据一致
+        if frame_workers is None:
+            frame_workers = min(8, os.cpu_count() or 4)
+        frame_workers = max(1, min(frame_workers, len(indices)))
+        with ThreadPoolExecutor(max_workers=frame_workers) as executor:
             frame_list = list(
                 executor.map(
                     lambda s: self._build_frame_data(s, stop_idx),
                     indices,
                 )
             )
+        return frame_list
 
-        # 再在主线程中按顺序写入数据集，避免多线程写 dataset 的并发问题
+    def _convert_episode(self, dataset, ep_idx, episode_ends):
+        """
+        转换单个 episode（顺序写入 dataset，用于兼容或单 episode 场景）
+        
+        Args:
+            dataset: LeRobotDataset 对象
+            ep_idx: episode 索引
+            episode_ends: episode 结束位置数组
+        """
+        frame_list = self._build_episode_frames(ep_idx, episode_ends)
         for frame_data in frame_list:
             dataset.add_frame(frame_data)
-
-        return stop_idx - start_idx
+        return len(frame_list)
     
     def _process_image(self, image_data, target_h=224, target_w=224):
         """
@@ -517,8 +534,7 @@ class ZarrToLeRobotConverter:
         
         return img
 
-
-def main():
+def main(data_name = "example"):
     parser = argparse.ArgumentParser(
         description='转换 ViTaMin-B Zarr 数据到 LeRobot 格式',
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -527,14 +543,14 @@ def main():
     parser.add_argument(
         '--zarr_path',
         type=str,
-        default=r'./data/_0118.zarr.zip',
+        default=r'data/' + data_name + '.zarr.zip',
         help='Zarr 文件路径 (.zarr 或 .zarr.zip)'
     )
     parser.add_argument(
         '--repo_id',
         type=str,
-        default=r'./data/lerobot/chaoyi/_0118',
-        help='LeRobot 数据集 ID，格式: username/dataset-name'
+        default=r'data/lerobot/chaoyi/' + data_name,
+        help='LeRobot 数据集 ID 或本地保存路径. 默认保存位置~/.cache/lerobot/data'
     )
     parser.add_argument(
         '--fps',
@@ -548,13 +564,14 @@ def main():
         default=["perform bimanual manipulation task"],
         help='任务描述'
     )
+    parser.add_argument(
+        '--episode_workers',
+        type=int,
+        default=None,
+        help='并行处理的 episode 数量，默认 min(8, CPU 核心数)'
+    )
     
     args = parser.parse_args()
-    
-    # 验证 repo_id 格式
-    if '/' not in args.repo_id:
-        print(f"错误: repo_id 格式必须是 'username/dataset-name'，当前: {args.repo_id}")
-        sys.exit(1)
     
     # 检查 Zarr 文件
     zarr_path = Path(args.zarr_path)
@@ -583,7 +600,7 @@ def main():
             language_instruction=args.language_instruction
         )
         
-        dataset = converter.convert_all_episodes()
+        dataset = converter.convert_all_episodes(episode_workers=args.episode_workers)
         
     except Exception as e:
         print(f"\n错误: 转换失败")
@@ -594,4 +611,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(data_name = "example")
