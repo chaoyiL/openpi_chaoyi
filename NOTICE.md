@@ -12,7 +12,7 @@
     conda activate vb
     ```
 
-1. 在conda环境中pip install uv；cd到工作空间
+1. 在conda环境中pip install uv
 
 2. 解决 PyAV/av 构建报错（uv sync 时 av 从源码编译，需要以下依赖）
 
@@ -21,9 +21,12 @@
     conda install -c conda-forge pkg-config cython c-compiler
     ```
 
+（如果没有repo：git clone https://github.com/chaoyiL/openpi_chaoyi.git）
+
 3. 配置环境
 
     ```shell
+    cd ~/openpi_chaoyi
     uv sync
     uv pip install -e .
     ```
