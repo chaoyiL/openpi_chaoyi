@@ -495,7 +495,7 @@ class ZarrToLeRobotConverter:
         
         # 设置进程数
         if num_workers is None:
-            num_workers = min(4, cpu_count() or 4)  # ZipStore 场景保守设置
+            num_workers = min(4, cpu_count() or 4)
         num_workers = max(1, min(num_workers, n_episodes))
         
         print(f"  - 进程数: {num_workers}")

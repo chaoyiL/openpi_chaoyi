@@ -1351,7 +1351,7 @@ def _flat(out):
     return view.cast('B')
 
 
-def register_codecs(codecs=None, force=False, verbose=True):
+def register_codecs(codecs=None, force=False, verbose=False):
     """Register codecs in this module with numcodecs."""
     for name, cls in globals().items():
         if not hasattr(cls, 'codec_id') or name == 'Codec':
