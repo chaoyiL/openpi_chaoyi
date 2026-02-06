@@ -572,7 +572,7 @@ _CONFIGS = [
             pi05=True
             ),
         data=SimpleDataConfig(
-            repo_id=f'./lerobot/data/lerobot/chaoyi/{exp_id}',
+            repo_id=f'./data/lerobot/chaoyi/{exp_id}',
             assets=AssetsConfig(
                 asset_id = exp_id,
                 assets_dir=r"assets/pi05_chaoyi",
