@@ -559,7 +559,7 @@ class TrainConfig:
 
 
 # Use `get_config` if you need to get a config by name in your code.
-exp_id = "_0118"
+exp_id = "example"
 _CONFIGS = [
     TrainConfig(
         name="pi05_chaoyi",
