@@ -7,11 +7,33 @@ from openpi import transforms
 from openpi.models import model as _model
 
 
+#
+# Single source of truth for image ordering.
+#
+# IMPORTANT: This order must be identical for both training and inference.
+# The model will embed images by iterating over `obs.images` in insertion order,
+# and `preprocess_observation(..., image_keys=...)` will also rebuild the dict
+# in the order of `image_keys`.
+#
+VITAC_IMAGE_KEYS: tuple[str, ...] = (
+    "left_image",
+    "right_image",
+    "tactile_left_0",
+    "tactile_right_0",
+    "tactile_left_1",
+    "tactile_right_1",
+)
+
+
 def make_vis_only_example(image_shape=(224, 224, 3), state_dim=20) -> dict:
     """Creates a random input example for the VB policy."""
     return {
         "observation.images.camera0": np.random.randint(256, size=image_shape, dtype=np.uint8),
         "observation.images.camera1": np.random.randint(256, size=image_shape, dtype=np.uint8),
+        "observation.images.tactile_left_0": np.random.randint(256, size=image_shape, dtype=np.uint8),
+        "observation.images.tactile_right_0": np.random.randint(256, size=image_shape, dtype=np.uint8),
+        "observation.images.tactile_left_1": np.random.randint(256, size=image_shape, dtype=np.uint8),
+        "observation.images.tactile_right_1": np.random.randint(256, size=image_shape, dtype=np.uint8),
         "observation.state": np.random.rand(state_dim),
         "task": "do something",
     }
@@ -38,12 +60,16 @@ class VBInputs(transforms.DataTransformFn):
         # stores as float32 (C,H,W), gets skipped for policy inference
         left_image = _parse_image(data["observation.images.camera0"])
         right_image = _parse_image(data["observation.images.camera1"])
+        tactile_left_0 = _parse_image(data["observation.images.tactile_left_0"])
+        tactile_right_0 = _parse_image(data["observation.images.tactile_right_0"])
+        tactile_left_1 = _parse_image(data["observation.images.tactile_left_1"])
+        tactile_right_1 = _parse_image(data["observation.images.tactile_right_1"])
 
         match self.model_type:
             case _model.ModelType.PI0 | _model.ModelType.PI05:
-                names = ("left_image", "right_image", "empty")
-                images = (left_image, right_image, np.zeros_like(left_image))
-                image_masks = (np.True_, np.True_, np.False_)
+                names = VITAC_IMAGE_KEYS
+                images = (left_image, right_image, tactile_left_0, tactile_right_0, tactile_left_1, tactile_right_1)
+                image_masks = (np.True_, np.True_, np.True_, np.True_, np.True_, np.True_)
             # case _model.ModelType.PI0_FAST:
             #     names = ("base_0_rgb", "base_1_rgb", "wrist_0_rgb")
             #     # We don't mask out padding images for FAST models.

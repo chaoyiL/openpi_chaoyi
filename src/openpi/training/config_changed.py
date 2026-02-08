@@ -1267,6 +1267,7 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="pi05_tactile_y1_tcp",
+        
         model=pi0_config.Pi0Config(
             action_dim=9,  # x, y, z, roll, pitch, yaw (no gripper in your data)
             action_horizon=50,
@@ -1278,11 +1279,13 @@ _CONFIGS = [
             action_expert_variant="gemma_300m_lora",
             pi05=True,
         ),
+
         data=TactileY1DataConfig(
             repo_id="y1/insert_tube_tcp",
             assets=AssetsConfig(asset_id="y1/insert_tube_tcp"),
             tactile_temporal_frames=5,  # 125 frames * 2 sensors = 250 tokens total
         ),
+
         # Freeze filter for LoRA fine-tuning (freeze pre-trained weights, train LoRA adapters)
         freeze_filter=pi0_config.Pi0Config(
             paligemma_variant="gemma_2b_lora",

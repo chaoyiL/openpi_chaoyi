@@ -582,7 +582,7 @@ def main(data_name="_0118"):
     parser.add_argument(
         '--repo_id',
         type=str,
-        default=f'data/lerobot/chaoyi/{data_name}',
+        default=f'chaoyi/{data_name}',
         help='LeRobot 数据集 ID'
     )
     parser.add_argument(

@@ -37,6 +37,31 @@
     ```
     其中，网址替换成自己的数据
 
+**Finetune 步骤**
+
+1. 数据格式转换
+```shell
+bash scripts/run_convert.sh
+```
+
+2. 计算归一化统计量
+```shell
+bash scripts/compute_norm_stats.sh pi05_chaoyi
+```
+（用uv锁定所有库的版本，避免冲突）
+其中，sh文件中pi05_chaoyi需要被修改为对应的config名；config本身在src/openpi/training/config.py中修改
+
+3. 配置wandb
+```shell
+wandb login
+```
+
+4. 训练
+```shell
+bash scripts/train.sh pi05_chaoyi
+```
+同理
+
 **TODO**
 
 1. **数据集**（已完成）：包括state（observation.state, 自感知）和action（action），我们需要把state和action从joint改成tcp。
@@ -55,24 +80,6 @@
 
 2. train.py中，原先的action为32维，需要在_load_weights_and_validate函数中添加自动适配action_dim的代码（为何load出来的action dim会和load之前有不同？？）
 
-3. model.py中，原先的tuple IMAGE_KEYs与vb_policy中设定的图像keys不同，需要修改为对应名称
+3. model.py中，原先的tuple IMAGE_KEYs与vb_policy中设定的图像keys不同，需要修改为对应名称。**现已将不同模式的keys封装，只需在model文件中修改policy_type即可。**
 
-**Finetune 步骤**
-
-1. 数据格式转换
-```shell
-bash scripts/run_convert.sh
-```
-
-2. 计算归一化统计量
-```shell
-bash scripts/compute_norm_stats.sh pi05_chaoyi
-```
-（用uv锁定所有库的版本，避免冲突）
-其中，sh文件中pi05_chaoyi需要被修改为对应的config名；config本身在src/openpi/training/config.py中修改
-
-3. 训练
-```shell
-bash scripts/train.sh pi05_chaoyi
-```
-同理
+4. 图像增强：在model.py第184行，原定的图像增强不对腕部相机进行（即wrist是否存在于key中），而只对外部相机进行。目前修改为对所有图像进行增强

@@ -20,8 +20,8 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
-import openpi.policies.vb_policy as vb_policy
-
+import openpi.policies.vb_policy_vis as vb_policy_vis
+import openpi.policies.vb_policy_vitac as vb_policy_vitac
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -559,7 +559,11 @@ class TrainConfig:
 
 
 # Use `get_config` if you need to get a config by name in your code.
-exp_id = "example"
+data_name = "example"
+repo_id=f'chaoyi/{data_name}' # keep consistent with the repo_id in the convert_zarr_to_lerobot.py
+asset_id = data_name
+assets_dir=f"assets/{data_name}"
+
 _CONFIGS = [
     TrainConfig(
         name="pi05_chaoyi",
@@ -569,17 +573,18 @@ _CONFIGS = [
             action_horizon=16,
             paligemma_variant="gemma_2b_lora",
             action_expert_variant="gemma_300m_lora",
-            pi05=True
+            pi05=True,
+            image_keys=vb_policy_vis.VIS_IMAGE_KEYS,
             ),
         data=SimpleDataConfig(
-            repo_id=f'./data/lerobot/chaoyi/{exp_id}',
+            repo_id=repo_id,
             assets=AssetsConfig(
-                asset_id = exp_id,
-                assets_dir=r"assets/pi05_chaoyi",
+                asset_id = asset_id,
+                assets_dir=assets_dir,
             ),
             data_transforms=lambda model: _transforms.Group(
-                inputs=[vb_policy.VBInputs(model_type=ModelType.PI05)],
-                outputs=[vb_policy.VBOutputs()],
+                inputs=[vb_policy_vis.VBInputs(model_type=ModelType.PI05)],
+                outputs=[vb_policy_vis.VBOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
@@ -595,13 +600,56 @@ _CONFIGS = [
         # Disable EMA for LoRA fine-tuning
         ema_decay=None,
         # Can use larger batch size with LoRA (lower memory footprint)
-        batch_size=1,
+        batch_size=32,
         num_train_steps=30000,
-        exp_name=exp_id,
+        exp_name=data_name,
         # Load pre-trained weights for PaliGemma and action_expert, skip tactile components
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
     ),
 
+    TrainConfig(
+        name="pi05_chaoyi_vitac",
+        model=pi0_config.Pi0Config(
+            state_dim=20,
+            action_dim=20,  
+            action_horizon=16,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+            pi05=True,
+            # Single source of truth for image ordering (training == inference).
+            image_keys=vb_policy_vitac.VITAC_IMAGE_KEYS,
+            ),
+        # TODO: add data config with tactile
+        data=SimpleDataConfig(
+            repo_id=repo_id,
+            assets=AssetsConfig(
+                asset_id = asset_id,
+                assets_dir=assets_dir,
+            ),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[vb_policy_vitac.VBInputs(model_type=ModelType.PI05)],
+                outputs=[vb_policy_vitac.VBOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+
+        # Freeze filter for LoRA fine-tuning (freeze pre-trained weights, train LoRA adapters)
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+            pi05=True
+        ).get_freeze_filter(),
+        # Disable EMA for LoRA fine-tuning
+        ema_decay=None,
+        # Can use larger batch size with LoRA (lower memory footprint)
+        batch_size=32,
+        num_train_steps=30000,
+        exp_name=data_name,
+        # Load pre-trained weights for PaliGemma and action_expert, skip tactile components
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+    ),
 
     TrainConfig(
         name="pi0_aloha",

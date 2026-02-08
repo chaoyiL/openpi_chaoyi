@@ -1,4 +1,5 @@
 import dataclasses
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import flax.nnx as nnx
@@ -20,6 +21,11 @@ class Pi0Config(_model.BaseModelConfig):
     dtype: str = "bfloat16"
     paligemma_variant: _gemma.Variant = "gemma_2b"
     action_expert_variant: _gemma.Variant = "gemma_300m"
+
+    # If provided, this defines the exact image key order expected by the model.
+    # This is used to keep training and inference image ordering consistent.
+    # If None, the model will use the insertion order of `observation.images`.
+    image_keys: Sequence[str] | None = None
 
     # Set the model specific defaults.
     action_dim: int = 32
