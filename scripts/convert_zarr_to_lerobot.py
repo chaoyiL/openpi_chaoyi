@@ -20,6 +20,9 @@ import zarr
 from zarr.storage import ZipStore
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
+# 读取训练配置用于确定 data_name
+from openpi.training import config as training_config
+
 # 注册图像解码器
 from utils.imagecodecs_numcodecs import register_codecs
 register_codecs()
@@ -566,25 +569,29 @@ class ZarrToLeRobotConverter:
         
         return dataset
 
+def _get_data_name_from_config(config_name: str = "pi05_chaoyi_vitac") -> str:
+    config = training_config.get_config(config_name)
+    repo_id = getattr(config.data, "repo_id", None)
+    if repo_id:
+        data_name = repo_id.split("/")[-1]
+        print(f"当前使用的data为: {data_name}")
+        return data_name
+    raise ValueError(f"无法从配置 {config_name} 推断 data_name")
 
-def main(data_name="_0118"):
+
+def main():
     parser = argparse.ArgumentParser(
         description='转换 ViTaMin-B Zarr 数据到 LeRobot 格式（内存节约版）',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     parser.add_argument(
-        '--zarr_path',
+        '--config_name',
         type=str,
-        default=f'data/{data_name}.zarr.zip',
-        help='Zarr 文件路径'
+        default="pi05_chaoyi_vitac",
+        help='训练配置名称'
     )
-    parser.add_argument(
-        '--repo_id',
-        type=str,
-        default=f'chaoyi/{data_name}',
-        help='LeRobot 数据集 ID'
-    )
+
     parser.add_argument(
         '--fps',
         type=int,
@@ -605,8 +612,11 @@ def main(data_name="_0118"):
     )
     
     args = parser.parse_args()
-    
-    zarr_path = Path(args.zarr_path)
+    config_name = args.config_name
+    data_name = _get_data_name_from_config(config_name)
+    zarr_path = Path(f'data/{data_name}.zarr.zip')
+    repo_id = f'chaoyi/{data_name}'
+
     if not zarr_path.exists():
         print(f"错误: 找不到 Zarr 文件: {zarr_path}")
         sys.exit(1)
@@ -615,15 +625,15 @@ def main(data_name="_0118"):
     print("ViTaMin-B Zarr → LeRobot 转换（内存节约版）")
     print("="*70)
     print(f"Zarr 文件: {zarr_path.absolute()}")
-    print(f"目标数据集: {args.repo_id}")
+    print(f"目标数据集: {repo_id}")
     print(f"采集频率: {args.fps} Hz")
     print("="*70)
     print()
     
     try:
         converter = ZarrToLeRobotConverter(
-            zarr_path=args.zarr_path,
-            output_repo_id=args.repo_id,
+            zarr_path=zarr_path,
+            output_repo_id=repo_id,
             fps=args.fps,
             state_dim=20,
             action_dim=20,
@@ -643,4 +653,4 @@ def main(data_name="_0118"):
 
 
 if __name__ == '__main__':
-    main(data_name="example")
+    main()

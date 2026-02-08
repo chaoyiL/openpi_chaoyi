@@ -48,6 +48,8 @@
 
 **Finetune 步骤**
 
+0. 修改使用的数据集：config.py 第564行 data_name 改为需要用的数据集名称；
+
 1. 数据格式转换
 
 ```shell
@@ -88,6 +90,8 @@ scp -P 22010 -i ~/.ssh/id_ed25519 -r root@194.68.245.213:~/openpi_chaoyi/checkpo
 bash scripts/test_single_inf.sh --config pi05_chaoyi_vitac --ckpt-dir checkpoints/pi05_chaoyi_vitac/my_experiment/50
 ```
 
+action chunk 的长度可以在 config.py 中通过 action_horizon 参数修改
+
 **TODO**
 
 1. **数据集**（已完成）：包括state（observation.state, 自感知）和action（action），我们需要把state和action从joint改成tcp。
@@ -100,7 +104,9 @@ bash scripts/test_single_inf.sh --config pi05_chaoyi_vitac --ckpt-dir checkpoint
 
 3. **修改网络**（已完成）：将基于图像的触觉信号加入
 
-4. **测试inference**：将训练好的ckpt存储，并尝试用其推断
+4. **单步inference**（已完成）：将训练好的ckpt存储，并尝试用其推断
+
+5. **多步inference**：尝试修改inference所读取的observation步数，尝试通过多步观测推出多步动作（如果可以的话）
 
 *注：*
 
