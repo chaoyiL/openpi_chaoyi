@@ -539,7 +539,8 @@ class TrainConfig:
     @property
     def assets_dirs(self) -> pathlib.Path:
         """Get the assets directory for this config."""
-        return (pathlib.Path(self.assets_base_dir) / self.name).resolve()
+        # return (pathlib.Path(self.assets_base_dir) / self.name).resolve()
+        return pathlib.Path(self.assets_base_dir).resolve()
 
     @property
     def checkpoint_dir(self) -> pathlib.Path:
