@@ -80,9 +80,13 @@ bash scripts/train.sh pi05_chaoyi_vitac
 ```shell
 scp -P 22010 -i ~/.ssh/id_ed25519 -r root@194.68.245.213:~/openpi_chaoyi/checkpoints/pi05_chaoyi_vitac/my_experiment /home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/checkpoints/pi05_chaoyi/
 ```
--P替换端口，root@194.68.245.213替换SSH over exposed TCP对应的账户和ip
+-P替换端口，root@194.68.245.213替换SSH over exposed TCP对应的账户和ip，后面的地址替换成自己的目标文件夹
 
-6. 单步推理
+6. 单步推理测试，给出一个随机输入，输出action chunk
+
+```shell
+bash scripts/test_single_inf.sh --config pi05_chaoyi_vitac --ckpt-dir checkpoints/pi05_chaoyi_vitac/my_experiment/50
+```
 
 **TODO**
 

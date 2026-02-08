@@ -614,14 +614,13 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(
             state_dim=20,
             action_dim=20,  
-            action_horizon=16,
+            action_horizon=4,
             paligemma_variant="gemma_2b_lora",
             action_expert_variant="gemma_300m_lora",
             pi05=True,
             # Single source of truth for image ordering (training == inference).
             image_keys=vb_policy_vitac.VITAC_IMAGE_KEYS,
             ),
-        # TODO: add data config with tactile
         data=SimpleDataConfig(
             repo_id=repo_id,
             assets=AssetsConfig(
