@@ -21,7 +21,11 @@
     conda install -c conda-forge pkg-config cython c-compiler
     ```
 
-（如果没有repo：git clone https://github.com/chaoyiL/openpi_chaoyi.git）
+如果没有repo：
+    ```shell
+    cd ~
+    git clone https://github.com/chaoyiL/openpi_chaoyi.git
+    ```
 
 3. 配置环境
 
@@ -83,3 +87,5 @@ bash scripts/train.sh pi05_chaoyi
 3. model.py中，原先的tuple IMAGE_KEYs与vb_policy中设定的图像keys不同，需要修改为对应名称。**现已将不同模式的keys封装，只需在model文件中修改policy_type即可。**
 
 4. 图像增强：在model.py第184行，原定的图像增强不对腕部相机进行（即wrist是否存在于key中），而只对外部相机进行。目前修改为对所有图像进行增强
+
+5. Git目前已经设置全局代理

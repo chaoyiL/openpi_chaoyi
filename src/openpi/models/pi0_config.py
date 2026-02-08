@@ -25,7 +25,7 @@ class Pi0Config(_model.BaseModelConfig):
     # If provided, this defines the exact image key order expected by the model.
     # This is used to keep training and inference image ordering consistent.
     # If None, the model will use the insertion order of `observation.images`.
-    image_keys: Sequence[str] | None = None
+    image_keys: tuple[str, ...] | None = None
 
     # Set the model specific defaults.
     action_dim: int = 32
