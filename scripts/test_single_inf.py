@@ -33,6 +33,7 @@ def main() -> None:
     example = vb_policy_vitac.make_vitac_example()
     action_chunk = policy.infer(example)["actions"]
     print("action_chunk: ", action_chunk)
+    print("action_chunk shape: ", action_chunk.shape)
 
 
 if __name__ == "__main__":
