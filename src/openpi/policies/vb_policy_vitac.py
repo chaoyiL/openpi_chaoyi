@@ -26,7 +26,7 @@ VITAC_IMAGE_KEYS: tuple[str, ...] = (
 )
 
 
-def make_vis_only_example(image_shape=(224, 224, 3), state_dim=20) -> dict:
+def make_vitac_example(image_shape=(224, 224, 3), state_dim=20) -> dict:
     """Creates a random input example for the VB policy."""
     return {
         "observation.images.camera0": np.random.randint(256, size=image_shape, dtype=np.uint8),

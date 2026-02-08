@@ -49,11 +49,13 @@
 **Finetune 步骤**
 
 1. 数据格式转换
+
 ```shell
 bash scripts/run_convert.sh
 ```
 
 2. 计算归一化统计量
+
 ```shell
 bash scripts/compute_norm_stats.sh pi05_chaoyi_vitac
 ```
@@ -61,15 +63,26 @@ bash scripts/compute_norm_stats.sh pi05_chaoyi_vitac
 其中，sh文件中pi05_chaoyi需要被修改为对应的config名；config本身在src/openpi/training/config.py中修改
 
 3. 配置wandb
+
 ```shell
 wandb login
 ```
 
 4. 训练
+
 ```shell
 bash scripts/train.sh pi05_chaoyi_vitac
 ```
 同理
+
+5. 下载ckpt
+
+```shell
+scp -P 22010 -i ~/.ssh/id_ed25519 -r root@194.68.245.213:~/openpi_chaoyi/checkpoints/pi05_chaoyi_vitac/my_experiment /home/liuchaoyi/openpi_chaoyi/openpi_chaoyi/checkpoints/pi05_chaoyi/
+```
+-P替换端口，root@194.68.245.213替换SSH over exposed TCP对应的账户和ip
+
+6. 单步推理
 
 **TODO**
 
