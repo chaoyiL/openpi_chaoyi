@@ -15,6 +15,7 @@ from openpi.models import model as _model
 # and `preprocess_observation(..., image_keys=...)` will also rebuild the dict
 # in the order of `image_keys`.
 #
+
 VITAC_IMAGE_KEYS: tuple[str, ...] = (
     "left_image",
     "right_image",

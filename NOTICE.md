@@ -12,7 +12,11 @@
     conda activate vb
     ```
 
-1. 在conda环境中pip install uv
+1. 在conda环境中
+
+    ```shell
+    pip install uv
+    ```
 
 2. 解决 PyAV/av 构建报错（uv sync 时 av 从源码编译，需要以下依赖）
 
@@ -22,6 +26,7 @@
     ```
 
 如果没有repo：
+
     ```shell
     cd ~
     git clone https://github.com/chaoyiL/openpi_chaoyi.git
@@ -50,7 +55,7 @@ bash scripts/run_convert.sh
 
 2. 计算归一化统计量
 ```shell
-bash scripts/compute_norm_stats.sh pi05_chaoyi
+bash scripts/compute_norm_stats.sh pi05_chaoyi_vitac
 ```
 （用uv锁定所有库的版本，避免冲突）
 其中，sh文件中pi05_chaoyi需要被修改为对应的config名；config本身在src/openpi/training/config.py中修改
@@ -62,7 +67,7 @@ wandb login
 
 4. 训练
 ```shell
-bash scripts/train.sh pi05_chaoyi
+bash scripts/train.sh pi05_chaoyi_vitac
 ```
 同理
 
@@ -76,7 +81,9 @@ bash scripts/train.sh pi05_chaoyi
 
 2. **修改policy**（已完成）：写一个新的vb_policy，key和维度与我们自己的features符合
 
-3. **修改网络**：将触觉信号加入
+3. **修改网络**（已完成）：将基于图像的触觉信号加入
+
+4. **测试inference**：将训练好的ckpt存储，并尝试用其推断
 
 *注：*
 
@@ -88,4 +95,6 @@ bash scripts/train.sh pi05_chaoyi
 
 4. 图像增强：在model.py第184行，原定的图像增强不对腕部相机进行（即wrist是否存在于key中），而只对外部相机进行。目前修改为对所有图像进行增强
 
-5. Git目前已经设置全局代理
+5. 设置ckpt存储频率：在 config.py 中的 class TrainingConfig，有变量 save_interval，用来设置多少代存储一次ckpt
+
+6. Git目前已经设置全局代理

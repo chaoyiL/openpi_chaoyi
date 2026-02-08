@@ -513,9 +513,9 @@ class TrainConfig:
     num_train_steps: int = 30_000
 
     # How often (in steps) to log training metrics.
-    log_interval: int = 100
+    log_interval: int = 50
     # How often (in steps) to save checkpoints.
-    save_interval: int = 1000
+    save_interval: int = 50
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
     keep_period: int | None = 5000
 
@@ -540,6 +540,7 @@ class TrainConfig:
     def assets_dirs(self) -> pathlib.Path:
         """Get the assets directory for this config."""
         # return (pathlib.Path(self.assets_base_dir) / self.name).resolve()
+        # compute_norm_stats.py and train.py must stay consistent with the assets_dir
         return pathlib.Path(self.assets_base_dir).resolve()
 
     @property
