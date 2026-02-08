@@ -562,7 +562,7 @@ class TrainConfig:
 data_name = "example"
 repo_id=f'chaoyi/{data_name}' # keep consistent with the repo_id in the convert_zarr_to_lerobot.py
 asset_id = data_name
-assets_dir=f"assets/{data_name}"
+assets_dir=f"assets"
 
 _CONFIGS = [
     TrainConfig(
