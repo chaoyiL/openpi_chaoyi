@@ -33,12 +33,12 @@
     conda install -c conda-forge pkg-config cython c-compiler
     ```
 
-如果没有repo：
+    如果没有repo：
 
-    ```shell
-    cd ~
-    git clone https://github.com/chaoyiL/openpi_chaoyi.git
-    ```
+        ```shell
+        cd ~
+        git clone https://github.com/chaoyiL/openpi_chaoyi.git
+        ```
 
 3. 配置环境
 
@@ -62,7 +62,24 @@
 
 **Finetune 步骤**
 
-0. 修改使用的数据集：config.py 第564行 data_name 改为需要用的数据集名称；
+0. 修改使用的数据集：config.py 第564行 data_name 改为需要用的数据集名称.
+
+    如需后台运行，使用如下指令：
+
+    a. 新建tmux终端：
+    ```shell
+    tmux new
+    ```
+
+    b. 连接到tmux终端：
+    ```shell
+    tmux attach
+    ```
+
+    c. 显示当前终端有哪些：
+    ```shell
+    tmux ls
+    ```
 
 1. 数据格式转换
 
