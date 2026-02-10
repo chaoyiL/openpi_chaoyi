@@ -602,6 +602,7 @@ _CONFIGS = [
         # Disable EMA for LoRA fine-tuning
         ema_decay=None,
         # Can use larger batch size with LoRA (lower memory footprint)
+        fsdp_devices=2,
         batch_size=32,
         num_train_steps=30000,
         exp_name=data_name,
@@ -645,6 +646,7 @@ _CONFIGS = [
         # Disable EMA for LoRA fine-tuning
         ema_decay=None,
         # Can use larger batch size with LoRA (lower memory footprint)
+        fsdp_devices=2,
         batch_size=32,
         num_train_steps=30000,
         exp_name=data_name,

@@ -89,7 +89,8 @@ wandb login
 ```shell
 bash scripts/train.sh pi05_chaoyi_vitac
 ```
-同理
+
+训练时使用的卡数在 config.py 中修改，由参数fsdp_devices决定。
 
 5. 下载ckpt
 
@@ -121,6 +122,14 @@ action chunk 的长度可以在 config.py 中通过 action_horizon 参数修改
 4. **单步inference**（已完成）：将训练好的ckpt存储，并尝试用其推断
 
 5. **多步inference**：尝试修改inference所读取的observation步数，尝试通过多步观测推出多步动作（如果可以的话）
+
+6. **实机deploy**：
+
+    a. 将env读取出来的实际obs与policy需要的dict项一一对应，生成obs_dict。*这一步容易出错，需要检查方法。*
+
+    b. 将obs_dict输入policy，获取policy的raw_action
+
+    c. 将raw_action输入get_real_umi_action()函数，获得action（不用改）
 
 *注：*
 
