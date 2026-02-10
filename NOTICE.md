@@ -12,6 +12,14 @@
     conda activate vb
     ```
 
+<!-- 或者升级conda：
+
+    ```shell
+    conda activate base
+    conda update conda
+    conda activate vb
+    ``` -->
+
 1. 在conda环境中
 
     ```shell
@@ -38,6 +46,12 @@
     cd ~/openpi_chaoyi
     uv sync
     uv pip install -e .
+    ```
+
+    注：实验室的电脑似乎没法直接在conda里跑 uv sync，需要强制使用系统头文件再跑 uv sync
+
+    ```shell
+    CC=/usr/bin/gcc CFLAGS="-I/usr/include" uv sync
     ```
 
 4. 下载文件
