@@ -87,6 +87,8 @@
 bash scripts/run_convert.sh
 ```
 
+注：_0118数据集现已完成转换，上传到了lerobot repo中。需要使用时只需将repo内容下载到 ~/.cache/huggingface/lerobot/chaoyi/_0118 即可。
+
 2. 计算归一化统计量
 
 ```shell
